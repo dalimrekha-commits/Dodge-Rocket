@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dodge Rocket | Raiyan's world</title>
+    <style>
+        body {
+            background-color: #0d0d1e;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #000000;
+            border: 2px solid #ffffff;
+            cursor: none;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 1.2em;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dodge Rocket</h1>
+    <p>Use the **arrow keys** to move. Press **spacebar** to shoot!</p>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+    <audio id="gameMusic" src="YOUR_MUSIC_FILE.mp3" autoplay loop></audio>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameMusic = document.getElementById('gameMusic');
+
+        // Game state variables
+        let score = 0;
+        let isGameOver = false;
+
+        // Player (Rocket)
+        const player = {
+            x: canvas.width / 2 - 15,
+            y: canvas.height - 60,
+            width: 30,
+            height: 40,
+            speed: 5,
+            dx: 0,
+            dy: 0
+        };
+
+        // Obstacles (Asteroids)
+        const obstacles = [];
+        const obstacleSpeed = 2;
+        const obstacleInterval = 750; // Milliseconds between new obstacles
+        let lastObstacleTime = Date.now();
+
+        // Projectiles (Bullets)
+        const projectiles = [];
+        const projectileSpeed = 7;
+
+        // Keyboard input
+        const keys = {};
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === ' ' && !isGameOver) {
+                createProjectile();
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // Functions
+        function drawPlayer() {
+            ctx.fillStyle = '#ff4500';
+            ctx.beginPath();
+            ctx.moveTo(player.x + player.width / 2, player.y);
+            ctx.lineTo(player.x, player.y + player.height);
+            ctx.lineTo(player.x + player.width, player.y + player.height);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function updatePlayerPosition() {
+            player.dx = 0;
+            player.dy = 0;
+            if (keys.ArrowLeft && player.x > 0) {
+                player.dx = -player.speed;
+            }
+            if (keys.ArrowRight && player.x + player.width < canvas.width) {
+                player.dx = player.speed;
+            }
+            if (keys.ArrowUp && player.y > 0) {
+                player.dy = -player.speed;
+            }
+            if (keys.ArrowDown && player.y + player.height < canvas.height) {
+                player.dy = player.speed;
+            }
+            player.x += player.dx;
+            player.y += player.dy;
+        }
+
+        function createObstacle() {
+            const size = Math.random() * 20 + 10;
+            const x = Math.random() * (canvas.width - size);
+            obstacles.push({
+                x,
+                y: -size,
+                size,
+                speed: obstacleSpeed + score * 0.005
+            });
+        }
+
+        function drawObstacles() {
+            ctx.fillStyle = '#808080';
+            obstacles.forEach(obstacle => {
+                ctx.beginPath();
+                ctx.arc(obstacle.x, obstacle.y, obstacle.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function updateObstacles() {
+            const now = Date.now();
+            if (now - lastObstacleTime > obstacleInterval && !isGameOver) {
+                createObstacle();
+                lastObstacleTime = now;
+            }
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obstacle = obstacles[i];
+                obstacle.y += obstacle.speed;
+
+                // Check for collision with player
+                if (
+                    player.x < obstacle.x + obstacle.size &&
+                    player.x + player.width > obstacle.x - obstacle.size &&
+                    player.y < obstacle.y + obstacle.size &&
+                    player.y + player.height > obstacle.y - obstacle.size
+                ) {
+                    isGameOver = true;
+                }
+
+                // Remove off-screen obstacles and increase score
+                if (obstacle.y - obstacle.size > canvas.height) {
+                    obstacles.splice(i, 1);
+                }
+            }
+        }
+
+        // New functions for projectiles
+        function createProjectile() {
+            projectiles.push({
+                x: player.x + player.width / 2,
+                y: player.y,
+                radius: 3,
+                speed: projectileSpeed
+            });
+        }
+
+        function drawProjectiles() {
+            ctx.fillStyle = '#add8e6';
+            projectiles.forEach(projectile => {
+                ctx.beginPath();
+                ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function updateProjectiles() {
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const projectile = projectiles[i];
+                projectile.y -= projectile.speed;
+
+                // Check for collision with obstacles
+                for (let j = obstacles.length - 1; j >= 0; j--) {
+                    const obstacle = obstacles[j];
+                    const dx = projectile.x - obstacle.x;
+                    const dy = projectile.y - obstacle.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < projectile.radius + obstacle.size) {
+                        obstacles.splice(j, 1);
+                        projectiles.splice(i, 1);
+                        score++;
+                        break;
+                    }
+                }
+
+                // Remove off-screen projectiles
+                if (projectile.y < 0) {
+                    projectiles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawScore() {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 25);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = '#ff0000';
+            ctx.font = '40px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2);
+            ctx.font = '20px Arial';
+            ctx.fillText('Press F5 to restart', canvas.width / 2, canvas.height / 2 + 40);
+        }
+
+        function gameLoop() {
+            if (isGameOver) {
+                drawGameOver();
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            updatePlayerPosition();
+            updateObstacles();
+            updateProjectiles();
+
+            drawPlayer();
+            drawObstacles();
+            drawProjectiles();
+            drawScore();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        gameLoop();
+    </script>
+</body>
+</html>
